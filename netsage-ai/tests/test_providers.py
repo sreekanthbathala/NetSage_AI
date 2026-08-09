@@ -178,7 +178,7 @@ Interface              IP-Address      OK? Method Status                Protocol
 GigabitEthernet0/0     192.168.1.1     YES NVRAM  administratively down down
 """
             results = run_all_checks(sample_output)
-            assert len(results) == 6  # All 6 checks run
+            assert len(results) == 7  # All 7 checks run
 
             # Should detect the admin-down interface
             triggered = [r for r in results if r["triggered"]]
@@ -191,11 +191,11 @@ GigabitEthernet0/0     192.168.1.1     YES NVRAM  administratively down down
 
         # Empty input
         results = run_all_checks("")
-        assert len(results) == 6
+        assert len(results) == 7
 
         # Gibberish input
         results = run_all_checks("xyz abc 123 !!!!")
-        assert len(results) == 6
+        assert len(results) == 7
 
 
 class TestOllamaProviderConfig:
@@ -207,3 +207,31 @@ class TestOllamaProviderConfig:
             with pytest.raises(ProviderConfigError) as exc_info:
                 OllamaProvider()
             assert "OLLAMA_MODEL" in str(exc_info.value)
+
+    def test_default_timeout_is_120(self):
+        """OLLAMA_TIMEOUT_SECONDS not set -> timeout defaults to 120."""
+        env_clean = {k: v for k, v in os.environ.items()
+                     if k not in ("OLLAMA_TIMEOUT_SECONDS",)}
+        env_clean.update({"AI_PROVIDER": "ollama", "OLLAMA_MODEL": "llama3.1"})
+        with patch.dict(os.environ, env_clean, clear=True):
+            from ai.providers.ollama_provider import OllamaProvider
+            provider = OllamaProvider()
+            assert provider.timeout == 120
+
+    def test_custom_timeout_from_env(self):
+        """OLLAMA_TIMEOUT_SECONDS=300 -> timeout is 300."""
+        env = {"AI_PROVIDER": "ollama", "OLLAMA_MODEL": "llama3.1",
+               "OLLAMA_TIMEOUT_SECONDS": "300"}
+        with patch.dict(os.environ, env):
+            from ai.providers.ollama_provider import OllamaProvider
+            provider = OllamaProvider()
+            assert provider.timeout == 300
+
+    def test_invalid_timeout_falls_back_to_default(self):
+        """Non-numeric OLLAMA_TIMEOUT_SECONDS -> falls back to 120."""
+        env = {"AI_PROVIDER": "ollama", "OLLAMA_MODEL": "llama3.1",
+               "OLLAMA_TIMEOUT_SECONDS": "not_a_number"}
+        with patch.dict(os.environ, env):
+            from ai.providers.ollama_provider import OllamaProvider
+            provider = OllamaProvider()
+            assert provider.timeout == 120

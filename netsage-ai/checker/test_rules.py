@@ -24,6 +24,7 @@ from checker.rules import (
     check_interface_down,
     check_missing_vlan,
     check_missing_route,
+    check_acl_implicit_deny,
     run_all_checks,
     get_triggered_checks,
 )
@@ -257,9 +258,9 @@ C    192.168.1.0/24 is directly connected, GigabitEthernet0/0
 # ============================================================
 
 class TestRunAllChecks:
-    def test_returns_six_results(self):
+    def test_returns_seven_results(self):
         result = run_all_checks("some arbitrary show output")
-        assert len(result) == 6
+        assert len(result) == 7
 
     def test_each_has_required_keys(self):
         results = run_all_checks("Router#show ip interface brief\n")
@@ -281,6 +282,68 @@ C    10.0.0.0/30 is directly connected
         triggered_rules = {r["rule"] for r in triggered}
         assert "check_duplicate_ip" in triggered_rules
         assert "check_missing_route" in triggered_rules
+
+
+# ============================================================
+# Check 7: ACL Implicit Deny
+# ============================================================
+
+class TestCheckAclImplicitDeny:
+    def test_clean_no_acl_deny(self):
+        output = """
+Router#show ip access-lists PERMIT_ALL
+Extended IP access list PERMIT_ALL
+    10 permit ip any any (match count: 500)
+"""
+        result = check_acl_implicit_deny(output)
+        assert result["triggered"] is False
+        assert result["rule"] == "check_acl_implicit_deny"
+
+    def test_deny_with_nonzero_match_count_detected(self):
+        output = """
+Router#show ip access-lists BLOCK_WEB
+Extended IP access list BLOCK_WEB
+    5 deny   tcp any any eq 80 (match count: 2341)
+    10 permit ip any any
+"""
+        result = check_acl_implicit_deny(output)
+        assert result["triggered"] is True
+        assert "2341" in result["evidence"]
+
+    def test_deny_with_zero_match_count_not_triggered(self):
+        """Deny with match count: 0 should NOT trigger (no traffic actually blocked)."""
+        output = """
+Router#show ip access-lists SECURITY_ACL
+Extended IP access list SECURITY_ACL
+    10 deny   udp any any eq 53 (match count: 0)
+    20 permit ip any any
+"""
+        result = check_acl_implicit_deny(output)
+        assert result["triggered"] is False
+
+    def test_catchall_deny_without_match_count_detected(self):
+        """A 'deny ip any any' with no match count reported should be flagged."""
+        output = """
+Router#show ip access-lists MGMT_ACL
+Extended IP access list MGMT_ACL
+    5 deny ip any any
+    10 permit tcp 10.1.1.0 0.0.0.255 host 10.0.0.1 eq 22
+"""
+        result = check_acl_implicit_deny(output)
+        assert result["triggered"] is True
+        assert "deny" in result["evidence"].lower()
+
+    def test_multiple_deny_hits_reported(self):
+        output = """
+Router#show ip access-lists OUT_ACL
+Extended IP access list OUT_ACL
+    10 deny   udp any any eq 53 (match count: 847)
+    20 deny   tcp any any eq 53 (match count: 12)
+    30 permit ip any any
+"""
+        result = check_acl_implicit_deny(output)
+        assert result["triggered"] is True
+        assert "847" in result["evidence"]
 
 
 if __name__ == "__main__":

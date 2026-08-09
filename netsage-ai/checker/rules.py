@@ -348,18 +348,77 @@ def check_missing_route(show_output: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Run all checks
+# Check 7: ACL Implicit Deny / High-Match Deny Rule
 # ---------------------------------------------------------------------------
 
-def run_all_checks(show_output: str) -> List[Dict[str, Any]]:
+def check_acl_implicit_deny(show_output: str) -> Dict[str, Any]:
     """
-    Run all 6 rule checks against a show command output string.
+    Detect ACL entries where a deny rule has a nonzero match count, suggesting
+    legitimate traffic is being blocked. Also detects the common mistake of
+    placing a broad deny-all (deny ip any any) before specific permit rules.
+
+    Looks for:
+      - "deny" lines in show ip access-lists with "match count" > 0
+      - A catch-all deny (deny ip any any / deny any any) that appears in the
+        ACL output, especially before specific permit lines in the sequence
 
     Args:
         show_output: Raw Cisco show command output string.
 
     Returns:
-        List of result dicts from each check (all 6, regardless of triggered status).
+        Same dict format as other checks.
+    """
+    rule_name = "check_acl_implicit_deny"
+    evidence_lines = []
+
+    lines = show_output.splitlines()
+
+    # Pattern: deny rules with nonzero match count
+    # e.g. "10 deny tcp any any eq 80 (match count: 2341)"
+    deny_match_pattern = re.compile(
+        r"deny\s+.+\(match count:\s*([1-9]\d*)\)",
+        re.IGNORECASE,
+    )
+    for line in lines:
+        m = deny_match_pattern.search(line)
+        if m:
+            evidence_lines.append(
+                f"Deny rule with {m.group(1)} matches: {line.strip()}"
+            )
+
+    # Pattern: catch-all deny before end of ACL
+    # "deny ip any any" or "deny any" without a match count (implicit deny surfaced)
+    catchall_deny = re.compile(
+        r"^\s*(?:\d+\s+)?deny\s+(?:ip\s+)?any\s+any\b",
+        re.IGNORECASE,
+    )
+    for line in lines:
+        if catchall_deny.match(line):
+            # Only flag if there's no match count (likely placed too early in ACL)
+            if "match count" not in line.lower():
+                evidence_lines.append(
+                    f"Catch-all deny rule found (may block unintended traffic): {line.strip()}"
+                )
+
+    triggered = len(evidence_lines) > 0
+    return {
+        "triggered": triggered,
+        "rule": rule_name,
+        "message": "ACL deny rule with active matches detected — traffic may be blocked." if triggered
+                   else "No ACL implicit-deny or high-match deny rule detected.",
+        "evidence": " | ".join(evidence_lines[:5]) if evidence_lines else "",
+    }
+
+
+def run_all_checks(show_output: str) -> List[Dict[str, Any]]:
+    """
+    Run all 7 rule checks against a show command output string.
+
+    Args:
+        show_output: Raw Cisco show command output string.
+
+    Returns:
+        List of result dicts from each check (all 7, regardless of triggered status).
     """
     checks = [
         check_duplicate_ip,
@@ -368,6 +427,7 @@ def run_all_checks(show_output: str) -> List[Dict[str, Any]]:
         check_interface_down,
         check_missing_vlan,
         check_missing_route,
+        check_acl_implicit_deny,
     ]
     return [check(show_output) for check in checks]
 
