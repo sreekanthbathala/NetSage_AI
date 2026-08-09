@@ -227,7 +227,10 @@ def check_interface_down(show_output: str) -> Dict[str, Any]:
         if "administratively down" in lower:
             evidence_lines.append(line.strip())
         elif re.search(r"\bdown\s+down\b", lower):
-            # "Interface ... down down" pattern from show ip interface brief
+            # "Interface ... down down" — both physical and protocol down
+            evidence_lines.append(line.strip())
+        elif re.search(r"\bup\s+down\b", lower):
+            # "Interface ... up down" — physical up but line protocol down
             evidence_lines.append(line.strip())
 
     triggered = len(evidence_lines) > 0

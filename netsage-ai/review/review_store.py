@@ -159,7 +159,7 @@ def save_review(
         "human_root_cause": str(human_root_cause).strip(),
         "agreement": str(agreement),
         "reviewer_notes": str(reviewer_notes).strip(),
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
 
     # Load existing reviews, remove any existing row for this case_id, append new row

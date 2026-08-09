@@ -42,8 +42,8 @@ VALID_DIAGNOSIS = {
     "osi_layer": "Layer 3",
     "confidence": "High",
     "evidence": [
-        "GigabitEthernet0/0.30  unassigned",
-        "no ip address on sub-interface"
+        "GigabitEthernet0/0.30  unassigned      YES unset  up",
+        "interface GigabitEthernet0/0.30 has no ip address configured"
     ],
     "next_command": "show running-config interface gi0/0.30",
     "fix_steps": [
@@ -125,7 +125,7 @@ class TestValidateDiagnosis:
     def test_grounded_evidence_passes(self):
         """Evidence that IS a substring of show output should pass."""
         good = {**VALID_DIAGNOSIS, "evidence": [
-            "GigabitEthernet0/0.30  unassigned",  # appears in SAMPLE_SHOW_OUTPUT
+            "GigabitEthernet0/0.30  unassigned      YES unset  up",  # appears verbatim in SAMPLE_SHOW_OUTPUT
         ]}
         raw = json.dumps(good)
         result, error = validate_diagnosis(raw, SAMPLE_SHOW_OUTPUT, "NS-014")

@@ -119,19 +119,23 @@ def validate_diagnosis(
     show_output_lower = show_command_output.lower()
     grounded = False
     for item in evidence:
-        if isinstance(item, str) and len(item) > 5:
-            # Check if at least 8 consecutive chars of the evidence appear in the show output
-            # This allows for slight paraphrasing while still preventing pure hallucination
+        if isinstance(item, str) and len(item) > 10:
+            # Check if at least 15 consecutive chars of the evidence appear in the show output.
+            # Using 15 chars to prevent short common phrases from passing grounding
+            # while allowing for minor paraphrasing in longer evidence strings.
             evidence_lower = item.lower()
-            # Look for a 8-char sliding window match
+            window_size = 15
             matched = False
-            if len(evidence_lower) >= 8:
-                for start in range(0, len(evidence_lower) - 7):
-                    chunk = evidence_lower[start:start + 8]
-                    if chunk in show_output_lower:
+            if len(evidence_lower) >= window_size:
+                for start in range(0, len(evidence_lower) - window_size + 1):
+                    chunk = evidence_lower[start:start + window_size]
+                    # Skip windows that are mostly spaces or generic words
+                    non_space_chars = chunk.replace(' ', '')
+                    if len(non_space_chars) >= 8 and chunk in show_output_lower:
                         matched = True
                         break
             else:
+                # Short evidence: require full match
                 matched = evidence_lower in show_output_lower
             if matched:
                 grounded = True

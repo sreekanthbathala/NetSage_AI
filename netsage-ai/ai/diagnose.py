@@ -87,7 +87,7 @@ def _make_error_result(case_id: str, provider_name: str, error_message: str) -> 
         "matches_expected": False,
         "ai_error": True,
         "ai_error_message": error_message,
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
 
 
@@ -168,7 +168,7 @@ def diagnose_case(case: dict) -> dict:
         "matches_expected": matches_expected,
         "ai_error": False,
         "ai_error_message": "",
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
 
 

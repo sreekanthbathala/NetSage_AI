@@ -9,7 +9,7 @@ NetSage AI — Main Streamlit Application
   3. 📊 Dashboard     — Case metrics, agreement rates, responsible AI log
 
 Architecture notes:
-  - This file NEVER imports a provider-specific SDK (no `import anthropic`, etc.)
+  - This file NEVER imports a provider-specific SDK (no provider SDKs imported directly)
   - All AI calls go through ai/diagnose.py -> ai/providers/provider_factory.py
   - Rule checker (checker/rules.py) runs independently of any AI provider
   - On AI failure: a red error banner is shown; rule checker results are unaffected
